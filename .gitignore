@@ -1,0 +1,13 @@
+# 依赖
+node_modules/
+
+# 编译产物
+src-tauri/target/
+dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
