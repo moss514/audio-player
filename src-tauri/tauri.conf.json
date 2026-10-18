@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ASMR04",
+  "productName": "ASMR",
   "version": "0.1.0",
   "identifier": "com.prts.asmrplayer",
   "build": {
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ASMR04",
+        "title": "ASMR",
         "width": 800,
         "height": 600
       }
