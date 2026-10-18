@@ -26,16 +26,21 @@ jobs:
       - run: npm install
       - name: Init Android
         run: npx tauri android init
+      
+      # === 新增：用你的 icon.png 生成并覆盖安卓原生图标 ===
+      - name: Generate Android Icons
+        run: npx tauri icon icon.png
+      
       - name: Build and Sign
         run: |
           npx tauri android build
           UNSIGNED_APK=$(find src-tauri/gen/android/app/build/outputs/apk/universal/release -name "*unsigned*.apk" | head -n 1)
           
-          # 核心修复：用 tr -d '\n' 去掉所有隐藏的换行符
           echo "${{ secrets.ANDROID_KEY_BASE64 }}" | tr -d '\n' | base64 --decode > my-release.jks
           
           APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -r | head -n 1)
           $APKSIGNER sign --ks my-release.jks --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} --out ASMR_${{ github.ref_name }}.apk $UNSIGNED_APK
+      
       - name: Upload APK
         uses: softprops/action-gh-release@v1
         with:
