@@ -47,29 +47,30 @@ jobs:
       - run: npm install
       - name: Init Android Project
         run: npx tauri android init
-      - name: Build Android APK
-        run: npx tauri android build
-        
-      # === 核心：直接使用 Action 给 APK 签名 ===
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: src-tauri/gen/android/app/build/outputs/apk/universal/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEY_BASE64 }}
-          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      # 重命名签名后的文件
-      - name: Rename APK
+      
+      # 核心：直接调用 Android 原生 apksigner 工具
+      - name: Build and Sign APK
         run: |
-          mv ${{ steps.sign_app.outputs.signedReleaseFile }} src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
+          npx tauri android build
           
+          # 1. 找到生成的未签名 APK
+          UNSIGNED_APK=$(find src-tauri/gen/android/app/build/outputs/apk/universal/release -name "*unsigned*.apk" | head -n 1)
+          echo "找到未签名APK: $UNSIGNED_APK"
+          
+          # 2. 从 Secrets 还原你的密钥库
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > my-release.jks
+          
+          # 3. 动态查找当前环境里最新的 apksigner 工具
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -r | head -n 1)
+          echo "找到签名工具: $APKSIGNER"
+          
+          # 4. 执行签名，并直接输出为最终的文件名
+          $APKSIGNER sign --ks my-release.jks --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} --out ASMR_${{ github.ref_name }}.apk $UNSIGNED_APK
+
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
+          files: ASMR_${{ github.ref_name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
