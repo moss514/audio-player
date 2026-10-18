@@ -47,17 +47,26 @@ jobs:
       - run: npm install
       - name: Init Android Project
         run: npx tauri android init
+        
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release.jks
+          echo "storeFile=${{ github.workspace }}/my-release.jks" > src-tauri/gen/android/keystore.properties
+          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
+          
       - name: Build Android APK
         run: npx tauri android build
-      
-      # 把丑陋的默认名字重命名为 ASMR_v0.1.2.apk
+        
       - name: Rename APK
-        run: mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
-      
+        run: mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}_signed.apk || mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
+        
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
+          # 上传所有构建出来的 apk 变体
+          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
