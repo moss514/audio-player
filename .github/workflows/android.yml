@@ -1,32 +1,11 @@
-name: Release
+name: Release Android
 on:
   push:
     tags: ['v*']
 permissions:
   contents: write
-
 jobs:
-  tauri-desktop:
-    strategy:
-      matrix:
-        platform: [windows-latest]
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: dtolnay/rust-toolchain@stable
-      - run: npm install
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
-          releaseDraft: true
-
-  tauri-android:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,34 +19,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
-      - name: Install Android Dependencies
+      - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       - run: npm install
-      - name: Init Android Project
+      - name: Init Android
         run: npx tauri android init
-      
-      # 核心：直接调用 Android 原生 apksigner 工具
-      - name: Build and Sign APK
+      - name: Build and Sign
         run: |
           npx tauri android build
-          
-          # 1. 找到生成的未签名 APK
           UNSIGNED_APK=$(find src-tauri/gen/android/app/build/outputs/apk/universal/release -name "*unsigned*.apk" | head -n 1)
-          echo "找到未签名APK: $UNSIGNED_APK"
           
-          # 2. 从 Secrets 还原你的密钥库
-          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > my-release.jks
+          # 核心修复：用 tr -d '\n' 去掉所有隐藏的换行符
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | tr -d '\n' | base64 --decode > my-release.jks
           
-          # 3. 动态查找当前环境里最新的 apksigner 工具
           APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -r | head -n 1)
-          echo "找到签名工具: $APKSIGNER"
-          
-          # 4. 执行签名，并直接输出为最终的文件名
           $APKSIGNER sign --ks my-release.jks --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} --out ASMR_${{ github.ref_name }}.apk $UNSIGNED_APK
-
-      - name: Upload APK to Release
+      - name: Upload APK
         uses: softprops/action-gh-release@v1
         with:
           draft: true
