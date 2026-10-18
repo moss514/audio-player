@@ -5,7 +5,7 @@ on:
 permissions:
   contents: write
 jobs:
-  build:
+  tauri-desktop:
     strategy:
       matrix:
         platform: [windows-latest]
@@ -24,3 +24,35 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
           releaseDraft: true
+
+  # 这是新增的安卓打包任务
+  tauri-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - name: Install Android Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm install
+      - name: Init Android Project
+        run: npx tauri android init
+      - name: Build Android APK
+        run: npx tauri android build
+      - name: Upload APK to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
