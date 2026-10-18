@@ -47,26 +47,29 @@ jobs:
       - run: npm install
       - name: Init Android Project
         run: npx tauri android init
-        
-      - name: Decode Keystore
-        run: |
-          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release.jks
-          echo "storeFile=${{ github.workspace }}/my-release.jks" > src-tauri/gen/android/keystore.properties
-          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/keystore.properties
-          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/keystore.properties
-          
       - name: Build Android APK
         run: npx tauri android build
         
+      # === 核心：直接使用 Action 给 APK 签名 ===
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: src-tauri/gen/android/app/build/outputs/apk/universal/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # 重命名签名后的文件
       - name: Rename APK
-        run: mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}_signed.apk || mv src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
-        
+        run: |
+          mv ${{ steps.sign_app.outputs.signedReleaseFile }} src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
+          
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          # 上传所有构建出来的 apk 变体
-          files: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          files: src-tauri/gen/android/app/build/outputs/apk/universal/release/ASMR_${{ github.ref_name }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
